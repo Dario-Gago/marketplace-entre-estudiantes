@@ -9,6 +9,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 
 type Category = {
@@ -26,10 +27,22 @@ type Product = {
   status: string;
 };
 export default function HomeScreen() {
+  const { session, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authLoading && !session) {
+      router.replace("/welcome");
+    }
+  }, [session, authLoading]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [selectedCategory]);
 
   async function loadCategories() {
     const { data, error } = await supabase
@@ -48,12 +61,16 @@ export default function HomeScreen() {
   }
 
   async function loadProducts() {
-  const { data, error } = await supabase
+  let query = supabase
     .from("products")
     .select("id, title, description, price, condition, status")
     .order("created_at", { ascending: false });
 
-  
+  if (selectedCategory) {
+    query = query.eq("category_id", selectedCategory);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.log("Error cargando productos:", error.message);
@@ -110,6 +127,11 @@ export default function HomeScreen() {
           <Text style={styles.sectionTitle}>
             Categorías
           </Text>
+          {selectedCategory && (
+            <Pressable onPress={() => setSelectedCategory(null)}>
+              <Text style={styles.clearFilter}>Ver todas</Text>
+            </Pressable>
+          )}
         </View>
 
         {loading ? (
@@ -123,7 +145,11 @@ export default function HomeScreen() {
             {categories.map((category) => (
               <Pressable
                 key={category.id}
-                style={styles.category}
+                style={[
+                  styles.category,
+                  selectedCategory === category.id && styles.categoryActive,
+                ]}
+                onPress={() => setSelectedCategory(category.id)}
               >
                 <Text style={styles.categoryIcon}>
                   {category.icon || "📦"}
@@ -176,6 +202,7 @@ export default function HomeScreen() {
   <Pressable
     key={product.id}
     style={styles.productCard}
+    onPress={() => router.push(`/products/${product.id}` as any)}
   >
     <View style={styles.productImage}>
       <Text style={styles.productImageIcon}>📦</Text>
@@ -317,6 +344,11 @@ const styles = StyleSheet.create({
     color: "#666",
     fontSize: 14,
   },
+  clearFilter: {
+    color: "#667eea",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 
   categories: {
     gap: 12,
@@ -342,6 +374,10 @@ const styles = StyleSheet.create({
   categoryName: {
     fontSize: 12,
     textAlign: "center",
+  },
+  categoryActive: {
+    backgroundColor: "#667eea",
+    borderWidth: 0,
   },
 
   empty: {

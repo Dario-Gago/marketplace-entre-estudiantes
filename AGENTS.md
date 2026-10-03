@@ -1,5 +1,29 @@
 This is an Expo/React Native mobile application. Prioritize mobile-first patterns, performance, and cross-platform compatibility.
 
+## Project-Specific Notes
+
+**UniMarket** is a university marketplace app using Supabase for backend.
+
+### Supabase Configuration
+- Environment variables needed: `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+- Database schema is in `supabase-schema.sql` - must be executed in Supabase SQL Editor
+- Uses Row Level Security (RLS) for data protection
+- Tables: users, universities, categories, products, favorites
+
+### Auth Flow
+1. User starts at `/welcome` (landing)
+2. Register → `/auth/register` → `/auth/university` → `/` (home)
+3. Login → `/auth/login` → `/` (home)
+4. Auth context in `src/contexts/AuthContext.tsx` manages session state
+5. Navigation guards redirect unauthenticated users to welcome
+
+### Key Features
+- Product listing with categories
+- User profile with product management
+- Favorites system
+- Product detail pages
+- University selection during registration
+
 ## Expo has changed — do not trust your training data
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:

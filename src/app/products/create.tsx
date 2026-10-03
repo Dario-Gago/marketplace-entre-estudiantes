@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -9,23 +10,50 @@ import {
     StyleSheet,
     Text,
     TextInput,
+    View,
 } from 'react-native';
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '../../lib/supabase';
+
+type Category = {
+  id: string;
+  name: string;
+  icon: string | null;
+};
 
 export default function CreateProductScreen() {
+  const [categories, setCategories] = useState<Category[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [condition, setCondition] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  async function loadCategories() {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id, name, icon')
+      .order('name');
+
+    if (error) {
+      console.error('Error cargando categorías:', error);
+    } else {
+      setCategories(data || []);
+    }
+  }
 
   const handleCreateProduct = async () => {
     if (
       !title.trim() ||
       !description.trim() ||
       !price.trim() ||
-      !condition.trim()
+      !condition.trim() ||
+      !selectedCategory
     ) {
       Alert.alert('Faltan datos', 'Completa todos los campos.');
       return;
@@ -79,6 +107,7 @@ export default function CreateProductScreen() {
       const { error } = await supabase.from('products').insert({
         seller_id: user.id,
         university_id: profile.university_id,
+        category_id: selectedCategory,
         title: title.trim(),
         description: description.trim(),
         price: numericPrice,
@@ -105,6 +134,7 @@ export default function CreateProductScreen() {
       setDescription('');
       setPrice('');
       setCondition('');
+      setSelectedCategory(null);
     } catch (error: any) {
       console.error('Error creando producto:', error);
 
@@ -154,14 +184,64 @@ export default function CreateProductScreen() {
           keyboardType="numeric"
         />
 
+        <Text style={styles.label}>Categoría</Text>
+
+        {categories.length === 0 ? (
+          <ActivityIndicator size="small" />
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.categoriesContainer}
+          >
+            {categories.map((category) => (
+              <Pressable
+                key={category.id}
+                style={[
+                  styles.categoryButton,
+                  selectedCategory === category.id && styles.categoryButtonActive,
+                ]}
+                onPress={() => setSelectedCategory(category.id)}
+              >
+                <Text style={styles.categoryIcon}>
+                  {category.icon || '📦'}
+                </Text>
+                <Text
+                  style={[
+                    styles.categoryName,
+                    selectedCategory === category.id && styles.categoryNameActive,
+                  ]}
+                >
+                  {category.name}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
         <Text style={styles.label}>Estado del producto</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Ej: Nuevo, usado, buen estado..."
-          value={condition}
-          onChangeText={setCondition}
-        />
+        <View style={styles.conditionOptions}>
+          {['nuevo', 'usado', 'como_nuevo'].map((opt) => (
+            <Pressable
+              key={opt}
+              style={[
+                styles.conditionButton,
+                condition === opt && styles.conditionButtonActive,
+              ]}
+              onPress={() => setCondition(opt)}
+            >
+              <Text
+                style={[
+                  styles.conditionButtonText,
+                  condition === opt && styles.conditionButtonTextActive,
+                ]}
+              >
+                {opt.charAt(0).toUpperCase() + opt.slice(1).replace('_', ' ')}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
 
         <Pressable
           style={[styles.button, loading && styles.disabled]}
@@ -231,5 +311,61 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  conditionOptions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 5,
+  },
+  conditionButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+    alignItems: 'center',
+  },
+  conditionButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  conditionButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  conditionButtonTextActive: {
+    color: '#fff',
+  },
+  categoriesContainer: {
+    gap: 10,
+    paddingBottom: 5,
+  },
+  categoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fafafa',
+    gap: 8,
+  },
+  categoryButtonActive: {
+    backgroundColor: '#667eea',
+    borderColor: '#667eea',
+  },
+  categoryIcon: {
+    fontSize: 20,
+  },
+  categoryName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+  },
+  categoryNameActive: {
+    color: '#fff',
   },
 });

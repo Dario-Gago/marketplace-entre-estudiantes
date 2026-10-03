@@ -1,7 +1,10 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
 import { useState } from "react";
 import {
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -48,98 +51,150 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>
-        Iniciar sesión
-      </Text>
-
-      <Text style={styles.subtitle}>
-        Marketplace de Estudiantes
-      </Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        keyboardType="email-address"
-        autoCapitalize="none"
-        autoCorrect={false}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <Pressable
-        style={styles.button}
-        onPress={handleLogin}
-        disabled={loading}
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+    >
+      <LinearGradient
+        colors={["#667eea", "#764ba2"]}
+        style={styles.gradient}
       >
-        <Text style={styles.buttonText}>
-          {loading ? "Iniciando..." : "Iniciar sesión"}
-        </Text>
-      </Pressable>
+        <View style={styles.content}>
+          <Pressable
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.backIcon}>←</Text>
+          </Pressable>
 
-      <Pressable onPress={() => router.back()}>
-        <Text style={styles.backText}>
-          Volver
-        </Text>
-      </Pressable>
-    </View>
+          <View style={styles.header}>
+            <Text style={styles.logo}>🎓</Text>
+            <Text style={styles.title}>Bienvenido de nuevo</Text>
+            <Text style={styles.subtitle}>
+              Inicia sesión para continuar
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <TextInput
+              style={styles.input}
+              placeholder="Correo electrónico"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+
+            <TextInput
+              style={styles.input}
+              placeholder="Contraseña"
+              placeholderTextColor="rgba(255, 255, 255, 0.6)"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+            />
+
+            <Pressable
+              style={styles.button}
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? "Iniciando..." : "Iniciar sesión"}
+              </Text>
+            </Pressable>
+
+            <Pressable onPress={() => router.push("/auth/register")}>
+              <Text style={styles.registerText}>
+                ¿No tienes cuenta?{" "}
+                <Text style={styles.registerLink}>Regístrate</Text>
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 30,
-    paddingTop: 90,
-    backgroundColor: "#fff",
   },
-
-  title: {
-    fontSize: 32,
+  gradient: {
+    flex: 1,
+  },
+  content: {
+    flex: 1,
+    padding: 30,
+    paddingTop: 60,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 30,
+  },
+  backIcon: {
+    fontSize: 24,
+    color: "#fff",
     fontWeight: "bold",
   },
-
-  subtitle: {
-    fontSize: 16,
-    color: "#666",
-    marginTop: 8,
-    marginBottom: 35,
+  header: {
+    alignItems: "center",
+    marginBottom: 40,
   },
-
-  input: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 10,
-    padding: 15,
-    fontSize: 16,
+  logo: {
+    fontSize: 60,
     marginBottom: 15,
   },
-
+  title: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 8,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.8)",
+  },
+  form: {
+    gap: 16,
+  },
+  input: {
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+    borderRadius: 14,
+    padding: 18,
+    fontSize: 16,
+    color: "#fff",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
   button: {
-    backgroundColor: "#111",
-    padding: 16,
-    borderRadius: 10,
+    backgroundColor: "#fff",
+    padding: 18,
+    borderRadius: 14,
     alignItems: "center",
     marginTop: 10,
   },
-
   buttonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
+    color: "#667eea",
+    fontSize: 18,
+    fontWeight: "700",
   },
-
-  backText: {
+  registerText: {
     textAlign: "center",
-    marginTop: 25,
-    fontSize: 16,
+    color: "rgba(255, 255, 255, 0.8)",
+    fontSize: 15,
+    marginTop: 15,
+  },
+  registerLink: {
+    color: "#fff",
+    fontWeight: "700",
   },
 });
