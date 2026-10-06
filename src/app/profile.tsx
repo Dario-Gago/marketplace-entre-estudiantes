@@ -1,13 +1,14 @@
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
-    View,
+    View
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -24,6 +25,7 @@ type Product = {
   title: string;
   price: number;
   status: string;
+  seller_id: string;
 };
 
 export default function ProfileScreen() {
@@ -31,16 +33,23 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !session) {
-      router.replace("/welcome");
-      return;
+  const loadProducts = useCallback(async (userId: string) => {
+    const { data: productsData, error: productsError } = await supabase
+      .from("products")
+      .select("id, title, price, status, seller_id")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (productsError) {
+      console.error("Error loading products:", productsError);
+    } else {
+      setProducts(productsData || []);
     }
-    loadProfile();
-  }, [session, authLoading]);
+  }, []);
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -67,20 +76,23 @@ export default function ProfileScreen() {
       university_name: profileData.universities?.name,
     });
 
-    const { data: productsData, error: productsError } = await supabase
-      .from("products")
-      .select("id, title, price, status")
-      .eq("seller_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (productsError) {
-      console.error("Error loading products:", productsError);
-    } else {
-      setProducts(productsData || []);
-    }
-
+    await loadProducts(user.id);
     setLoading(false);
-  }
+  }, [loadProducts]);
+
+  useEffect(() => {
+    if (!authLoading && !session) {
+      router.replace("/welcome");
+      return;
+    }
+    loadProfile();
+  }, [session, authLoading, loadProfile]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
+  }, [loadProfile]);
 
   async function handleLogout() {
     const { error } = await supabase.auth.signOut();
@@ -89,6 +101,47 @@ export default function ProfileScreen() {
       return;
     }
     router.replace("/welcome");
+  }
+
+  async function handleDeleteProduct(productId: string) {
+    Alert.alert(
+      "Eliminar producto",
+      "¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("products")
+              .delete()
+              .eq("id", productId);
+
+            if (error) {
+              Alert.alert("Error", error.message);
+              return;
+            }
+
+            Alert.alert(
+              "Producto eliminado",
+              "El producto ha sido eliminado correctamente."
+            );
+
+            // Reload products
+            const {
+              data: { user },
+            } = await supabase.auth.getUser();
+            if (user) {
+              await loadProducts(user.id);
+            }
+          },
+        },
+      ]
+    );
   }
 
   if (loading) {
@@ -104,6 +157,9 @@ export default function ProfileScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.title}>Mi Perfil</Text>
@@ -155,7 +211,7 @@ export default function ProfileScreen() {
           style={styles.actionButton}
           onPress={() => router.push("/products/create")}
         >
-          <Text style={styles.actionIcon}>➕</Text>
+          <Text style={styles.publishIcon}>➕</Text>
           <Text style={styles.actionText}>Publicar producto</Text>
         </Pressable>
 
@@ -173,23 +229,40 @@ export default function ProfileScreen() {
             <View style={styles.products}>
               {products.map((product) => (
                 <View key={product.id} style={styles.productItem}>
-                  <View style={styles.productInfo}>
+                  <Pressable
+                    style={styles.productInfo}
+                    onPress={() => router.push(`/products/${product.id}`)}
+                  >
                     <Text style={styles.productTitle}>{product.title}</Text>
                     <Text style={styles.productPrice}>
                       ${product.price.toLocaleString("es-CL")}
                     </Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.statusBadge,
-                      product.status === "active"
-                        ? styles.statusActive
-                        : styles.statusSold,
-                    ]}
-                  >
-                    <Text style={styles.statusText}>
-                      {product.status === "active" ? "Activo" : "Vendido"}
-                    </Text>
+                  </Pressable>
+                  <View style={styles.productActions}>
+                    <View
+                      style={[
+                        styles.statusBadge,
+                        product.status === "active"
+                          ? styles.statusActive
+                          : styles.statusSold,
+                      ]}
+                    >
+                      <Text style={styles.statusText}>
+                        {product.status === "active" ? "Activo" : "Vendido"}
+                      </Text>
+                    </View>
+                    <Pressable
+                      style={styles.actionIcon}
+                      onPress={() => router.push(`/products/${product.id}/edit`)}
+                    >
+                      <Text style={styles.iconText}>✏️</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.actionIcon}
+                      onPress={() => handleDeleteProduct(product.id)}
+                    >
+                      <Text style={styles.iconText}>🗑️</Text>
+                    </Pressable>
                   </View>
                 </View>
               ))}
@@ -309,7 +382,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 30,
   },
-  actionIcon: {
+  publishIcon: {
     fontSize: 20,
     marginRight: 10,
   },
@@ -361,6 +434,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: "#667eea",
+  },
+  productActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  actionIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#e0e0e0",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  iconText: {
+    fontSize: 16,
   },
   statusBadge: {
     paddingHorizontal: 12,

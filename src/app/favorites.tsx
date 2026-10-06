@@ -1,13 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
-    View,
+    View
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
@@ -27,16 +29,9 @@ export default function FavoritesScreen() {
   const { session, loading: authLoading } = useAuth();
   const [favorites, setFavorites] = useState<FavoriteProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (!authLoading && !session) {
-      router.replace("/welcome");
-      return;
-    }
-    loadFavorites();
-  }, [session, authLoading]);
-
-  async function loadFavorites() {
+  const loadFavorites = useCallback(async () => {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -83,7 +78,21 @@ export default function FavoritesScreen() {
 
     setFavorites(products);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    if (!authLoading && !session) {
+      router.replace("/welcome");
+      return;
+    }
+    loadFavorites();
+  }, [session, authLoading, loadFavorites]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadFavorites();
+    setRefreshing(false);
+  }, [loadFavorites]);
 
   async function removeFavorite(productId: string) {
     const {
@@ -119,6 +128,9 @@ export default function FavoritesScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.title}>Mis Favoritos</Text>
@@ -126,7 +138,8 @@ export default function FavoritesScreen() {
 
         {favorites.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyIcon}>❤️</Text>
+            <Ionicons name="heart" size={24} color="#b61c1c"/>
+
             <Text style={styles.emptyTitle}>
               No tienes favoritos
             </Text>
@@ -164,7 +177,8 @@ export default function FavoritesScreen() {
                       style={styles.favoriteButton}
                       onPress={() => removeFavorite(product.id)}
                     >
-                      <Text style={styles.favoriteIcon}>❤️</Text>
+                      <Ionicons name="heart" size={16} color="#b61c1c"  />
+                      
                     </Pressable>
                   </View>
 

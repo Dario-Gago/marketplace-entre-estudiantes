@@ -1,20 +1,20 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from 'react-native';
 
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 
 type Category = {
   id: string;
@@ -23,7 +23,8 @@ type Category = {
 };
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-export default function CreateProductScreen() {
+export default function EditProductScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [categories, setCategories] = useState<Category[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
@@ -31,25 +32,41 @@ export default function CreateProductScreen() {
   const [condition, setCondition] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+
+  const loadProductAndCategories = useCallback(async () => {
+    const [
+      { data: productData, error: productError },
+      { data: categoriesData, error: categoriesError },
+    ] = await Promise.all([
+      supabase.from('products').select('*').eq('id', id).single(),
+      supabase.from('categories').select('id, name, icon').order('name'),
+    ]);
+
+    if (productError) {
+      Alert.alert('Error', productError.message);
+      setInitialLoading(false);
+      return;
+    }
+
+    if (categoriesError) {
+      console.error('Error cargando categorías:', categoriesError);
+    }
+
+    setTitle(productData.title);
+    setDescription(productData.description);
+    setPrice(productData.price.toString());
+    setCondition(productData.condition);
+    setSelectedCategory(productData.category_id);
+    setCategories(categoriesData || []);
+    setInitialLoading(false);
+  }, [id]);
 
   useEffect(() => {
-    loadCategories();
-  }, []);
+    loadProductAndCategories();
+  }, [loadProductAndCategories]);
 
-  async function loadCategories() {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('id, name, icon')
-      .order('name');
-
-    if (error) {
-      console.error('Error cargando categorías:', error);
-    } else {
-      setCategories(data || []);
-    }
-  }
-
-  const handleCreateProduct = async () => {
+  const handleUpdateProduct = async () => {
     if (
       !title.trim() ||
       !description.trim() ||
@@ -71,59 +88,24 @@ export default function CreateProductScreen() {
     setLoading(true);
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError) {
-        throw userError;
-      }
-
-      if (!user) {
-        Alert.alert(
-          'Sesión requerida',
-          'Debes iniciar sesión para publicar un producto.'
-        );
-        return;
-      }
-
-      const { data: profile, error: profileError } = await supabase
-        .from('users')
-        .select('university_id')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError) {
-        throw profileError;
-      }
-
-      if (!profile?.university_id) {
-        Alert.alert(
-          'Universidad no seleccionada',
-          'Debes seleccionar tu universidad antes de publicar.'
-        );
-        return;
-      }
-
-      const { error } = await supabase.from('products').insert({
-        seller_id: user.id,
-        university_id: profile.university_id,
-        category_id: selectedCategory,
-        title: title.trim(),
-        description: description.trim(),
-        price: numericPrice,
-        condition: condition.trim(),
-        status: 'active',
-      });
+      const { error } = await supabase
+        .from('products')
+        .update({
+          category_id: selectedCategory,
+          title: title.trim(),
+          description: description.trim(),
+          price: numericPrice,
+          condition: condition.trim(),
+        })
+        .eq('id', id);
 
       if (error) {
         throw error;
       }
 
       Alert.alert(
-        '¡Producto publicado!',
-        'Tu producto se guardó correctamente.',
+        '¡Producto actualizado!',
+        'Tu producto se actualizó correctamente.',
         [
           {
             text: 'OK',
@@ -131,23 +113,25 @@ export default function CreateProductScreen() {
           },
         ]
       );
-
-      setTitle('');
-      setDescription('');
-      setPrice('');
-      setCondition('');
-      setSelectedCategory(null);
     } catch (error: any) {
-      console.error('Error creando producto:', error);
+      console.error('Error actualizando producto:', error);
 
       Alert.alert(
         'Error',
-        error?.message || 'No se pudo publicar el producto.'
+        error?.message || 'No se pudo actualizar el producto.'
       );
     } finally {
       setLoading(false);
     }
   };
+
+  if (initialLoading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
 
   return (
     <KeyboardAvoidingView
@@ -155,7 +139,7 @@ export default function CreateProductScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>Publicar producto</Text>
+        <Text style={styles.title}>Editar producto</Text>
 
         <Text style={styles.label}>Título</Text>
 
@@ -206,10 +190,10 @@ export default function CreateProductScreen() {
                 onPress={() => setSelectedCategory(category.id)}
               >
                 <Ionicons
-  name={category.icon as IconName}
-  size={16}
-  color="#667eea"
-/>
+                  name={category.icon as IconName}
+                  size={16}
+                  color="#667eea"
+                />
                 <Text
                   style={[
                     styles.categoryName,
@@ -249,11 +233,11 @@ export default function CreateProductScreen() {
 
         <Pressable
           style={[styles.button, loading && styles.disabled]}
-          onPress={handleCreateProduct}
+          onPress={handleUpdateProduct}
           disabled={loading}
         >
           <Text style={styles.buttonText}>
-            {loading ? 'Publicando...' : 'Publicar producto'}
+            {loading ? 'Actualizando...' : 'Guardar cambios'}
           </Text>
         </Pressable>
       </ScrollView>
@@ -270,6 +254,12 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
     paddingTop: 50,
+  },
+
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   title: {

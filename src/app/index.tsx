@@ -1,17 +1,18 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from "react-native";
 import { useAuth } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-
 type Category = {
   id: string;
   name: string;
@@ -26,11 +27,14 @@ type Product = {
   condition: string;
   status: string;
 };
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
 export default function HomeScreen() {
   const { session, loading: authLoading } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
@@ -40,11 +44,7 @@ export default function HomeScreen() {
     }
   }, [session, authLoading]);
 
-  useEffect(() => {
-    loadProducts();
-  }, [selectedCategory]);
-
-  async function loadCategories() {
+  const loadCategories = useCallback(async () => {
     const { data, error } = await supabase
       .from("categories")
       .select("id, name, icon")
@@ -58,63 +58,52 @@ export default function HomeScreen() {
 
     setCategories(data || []);
     setLoading(false);
-  }
+  }, []);
 
-  async function loadProducts() {
-  let query = supabase
-    .from("products")
-    .select("id, title, description, price, condition, status")
-    .order("created_at", { ascending: false });
+  const loadProducts = useCallback(async () => {
+    let query = supabase
+      .from("products")
+      .select("id, title, description, price, condition, status")
+      .order("created_at", { ascending: false });
 
-  if (selectedCategory) {
-    query = query.eq("category_id", selectedCategory);
-  }
+    if (selectedCategory) {
+      query = query.eq("category_id", selectedCategory);
+    }
 
-  const { data, error } = await query;
+    const { data, error } = await query;
 
-  if (error) {
-    console.log("Error cargando productos:", error.message);
-    return;
-  }
+    if (error) {
+      console.log("Error cargando productos:", error.message);
+      return;
+    }
 
-  setProducts(data || []);
-}
+    setProducts(data || []);
+  }, [selectedCategory]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [selectedCategory, loadProducts]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([loadCategories(), loadProducts()]);
+    setRefreshing(false);
+  }, [loadCategories, loadProducts]);
 
   useEffect(() => {
     loadCategories();
     loadProducts();
-  }, []);
+  }, [loadCategories, loadProducts]);
 
   return (
     <View style={styles.container}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.smallTitle}>
-              MARKETPLACE
-            </Text>
-
-            <Text style={styles.title}>
-              Compra y vende
-            </Text>
-
-            <Text style={styles.subtitle}>
-              entre estudiantes
-            </Text>
-          </View>
-
-          <Pressable
-            style={styles.profileButton}
-            onPress={() => router.push("/profile")}
-          >
-            <Text style={styles.profileIcon}>
-              👤
-            </Text>
-          </Pressable>
-        </View>
 
         <TextInput
           style={styles.search}
@@ -151,9 +140,11 @@ export default function HomeScreen() {
                 ]}
                 onPress={() => setSelectedCategory(category.id)}
               >
-                <Text style={styles.categoryIcon}>
-                  {category.icon || "📦"}
-                </Text>
+                <Ionicons
+                  name={category.icon as IconName}
+                  size={24}
+                  color="#0d1e68"
+                />
 
                 <Text style={styles.categoryName}>
                   {category.name}
@@ -244,7 +235,7 @@ export default function HomeScreen() {
 
       <View style={styles.bottomBar}>
         <Pressable style={styles.tab}>
-          <Text style={styles.tabIcon}>🏠</Text>
+          <Ionicons name="home" size={24} color="#667eea" />
           <Text style={styles.activeTabText}>Inicio</Text>
         </Pressable>
 
@@ -252,7 +243,7 @@ export default function HomeScreen() {
           style={styles.tab}
           onPress={() => router.push("/favorites")}
         >
-          <Text style={styles.tabIcon}>❤️</Text>
+          <Ionicons name="heart" size={24} color={'#da1010'} />
           <Text style={styles.tabText}>Favoritos</Text>
         </Pressable>
 
@@ -260,7 +251,7 @@ export default function HomeScreen() {
           style={styles.tab}
           onPress={() => router.push("/profile")}
         >
-          <Text style={styles.tabIcon}>👤</Text>
+          <Ionicons name="person" size={24} color={'#170954'} />
           <Text style={styles.tabText}>Perfil</Text>
         </Pressable>
       </View>

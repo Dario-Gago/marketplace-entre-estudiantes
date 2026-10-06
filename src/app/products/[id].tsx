@@ -1,13 +1,15 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View
 } from "react-native";
 import { supabase } from "../../lib/supabase";
 
@@ -20,6 +22,7 @@ type ProductDetail = {
   status: string;
   image_url: string | null;
   created_at: string;
+  seller_id: string;
   seller: {
     name: string;
     university_name: string;
@@ -31,13 +34,11 @@ export default function ProductDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [isOwner, setIsOwner] = useState(false);
 
-  useEffect(() => {
-    loadProduct();
-  }, [id]);
-
-  async function loadProduct() {
+  const loadProduct = useCallback(async () => {
     const { data, error } = await supabase
       .from("products")
       .select(
@@ -73,6 +74,7 @@ export default function ProductDetailScreen() {
 
     setProduct({
       ...data,
+      seller_id: data.seller_id,
       seller: {
         name: data.users.name,
         university_name: data.users.universities?.name || "Sin universidad",
@@ -80,8 +82,19 @@ export default function ProductDetailScreen() {
       is_favorite: isFav,
     });
     setIsFavorite(isFav);
+    setIsOwner(user?.id === data.seller_id);
     setLoading(false);
-  }
+  }, [id]);
+
+  useEffect(() => {
+    loadProduct();
+  }, [id, loadProduct]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadProduct();
+    setRefreshing(false);
+  }, [loadProduct]);
 
   async function toggleFavorite() {
     const {
@@ -134,6 +147,45 @@ export default function ProductDetailScreen() {
     }
   }
 
+  async function handleDelete() {
+    Alert.alert(
+      "Eliminar producto",
+      "¿Estás seguro de que quieres eliminar este producto? Esta acción no se puede deshacer.",
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Eliminar",
+          style: "destructive",
+          onPress: async () => {
+            const { error } = await supabase
+              .from("products")
+              .delete()
+              .eq("id", id);
+
+            if (error) {
+              Alert.alert("Error", error.message);
+              return;
+            }
+
+            Alert.alert(
+              "Producto eliminado",
+              "El producto ha sido eliminado correctamente.",
+              [
+                {
+                  text: "OK",
+                  onPress: () => router.back(),
+                },
+              ]
+            );
+          },
+        },
+      ]
+    );
+  }
+
   if (loading) {
     return (
       <View style={styles.center}>
@@ -161,6 +213,9 @@ export default function ProductDetailScreen() {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backIcon}>←</Text>
@@ -183,9 +238,8 @@ export default function ProductDetailScreen() {
               ]}
               onPress={toggleFavorite}
             >
-              <Text style={styles.favoriteIcon}>
-                {isFavorite ? "❤️" : "♡"}
-              </Text>
+             
+              <Ionicons name="heart" size={24} color={isFavorite ? "#b61c1c" : "#667eea"} />
             </Pressable>
           </View>
 
@@ -248,7 +302,24 @@ export default function ProductDetailScreen() {
           </Text>
         </View>
 
-        {product.status === "active" && (
+        {isOwner && (
+          <View style={styles.ownerActions}>
+            <Pressable
+              style={[styles.actionButton, styles.editButton]}
+              onPress={() => router.push(`/products/${id}/edit`)}
+            >
+              <Text style={styles.actionButtonText}>Editar</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.actionButton, styles.deleteButton]}
+              onPress={handleDelete}
+            >
+              <Text style={styles.actionButtonText}>Eliminar</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {product.status === "active" && !isOwner && (
           <Pressable style={styles.contactButton}>
             <Text style={styles.contactButtonText}>Contactar vendedor</Text>
           </Pressable>
@@ -427,6 +498,28 @@ const styles = StyleSheet.create({
   contactButtonText: {
     color: "#fff",
     fontSize: 18,
+    fontWeight: "700",
+  },
+  ownerActions: {
+    flexDirection: "row",
+    gap: 12,
+    margin: 22,
+  },
+  actionButton: {
+    flex: 1,
+    padding: 16,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  editButton: {
+    backgroundColor: "#667eea",
+  },
+  deleteButton: {
+    backgroundColor: "#ff5252",
+  },
+  actionButtonText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "700",
   },
 });
